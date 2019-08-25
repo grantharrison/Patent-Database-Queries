@@ -1,0 +1,91 @@
+SELECT application_data.application_number, maintenance_fees.application_number
+FROM patent01.application_data INNER JOIN patent01.maintenance_fees
+WHERE application_data.filing_date = maintenance_fees.application_filling_date
+AND application_data.patent_number = maintenance_fees.patent_number;
+
+SELECT COUNT(*) 
+AS 5yrs_From_Insurance
+FROM application_data
+WHERE patent_issue_date BETWEEN "1996-01-01" and "2001-01-01";
+
+SELECT COUNT(*) 
+AS 10yrs_From_Insurance
+FROM application_data
+WHERE patent_issue_date BETWEEN "1996-01-01" and "2006-01-01";
+
+SELECT COUNT(*) 
+AS 15yrs_From_Insurance
+FROM application_data
+WHERE filing_date BETWEEN "1996-01-01" and "2011-01-01";
+
+SELECT COUNT(*) 
+AS no_filing_date
+FROM application_data
+WHERE filing_date = '0000-00-00';
+
+SELECT COUNT(*) 
+FROM application_data;
+
+SELECT *
+FROM patent01.maintenance_fees INNER JOIN patent01.application_data
+WHERE maintenance_fees.application_number = application_data.application_number
+AND maintenance_fees.grant_issue_date = '1993-03-30';
+
+SELECT A.application_number, B.application_number, B.filing_date, A.maintenance_fee_entry_date, A.maintenance_fee_event_code
+FROM patent01.maintenance_fees A INNER JOIN patent01.application_data B
+ON A.application_number = B.application_number
+AND A.maintenance_fee_event_code LIKE '%EXP.%';
+
+SELECT A.application_number, MIN(parent_filing_date), MIN(filing_date)
+FROM application_data A INNER JOIN continuity_parents P
+WHERE A.application_number = P.application_number
+AND P.continuation_type NOT LIKE '%PRO%'
+AND P.parent_filing_date IS NOT NULL
+GROUP BY A.application_number;
+
+SELECT application_number, patent_term_adjustment 
+FROM patent01.pta_summary
+WHERE patent_term_adjustment != 0;
+
+SELECT filing_date, patent_issue_date
+FROM patent01.application_data
+WHERE patent_number NOT LIKE '%None%'
+AND patent_issue_date != "0000-00-00";
+
+INSERT INTO patent01.Patent_Experation_Dates (Application_Number, Experation_Date)
+	SELECT A.application_number, MAX(A.maintenance_fee_entry_date) as Experation_Date
+	FROM patent01.maintenance_fees A INNER JOIN patent01.application_data B
+	ON A.application_number = B.application_number
+	AND A.maintenance_fee_event_code LIKE '%EXP.%'
+	GROUP BY A.application_number;
+
+INSERT INTO patent01.Important_Dates (Earliest_Filing_Date)
+	SELECT A.application_number, 
+    IF (parent_filing_date = 0000-00-00, A.filing_date, P.parent_filing_date) AS "Earliest Filling Date"
+	FROM application_data as A INNER JOIN continuity_parents as P 
+	WHERE A.application_number = P.application_number
+	AND P.continuation_type NOT LIKE '%PRO%'
+	AND A.filing_date != 0000-00-00;
+
+SELECT distinct(A.application_number), A.filing_date, P.parent_filing_date
+FROM application_data A INNER JOIN continuity_parents P
+WHERE A.application_number = P.application_number
+AND P.continuation_type NOT LIKE '%PRO%'
+AND A.filing_date != "0000-00-00"
+AND A.application_number = 5186461;
+
+INSERT INTO patent01.Important_Dates (application_number)
+    SELECT application_data.application_number
+    FROM application_data
+    WHERE application_data.filing_date != 0000-00-00;
+
+INSERT INTO patent01.Important_Dates (application_number, Patent_Term_Adj, Earliest_Filing_Date)    
+	SELECT A.application_number, Z.patent_term_adjustment,
+		IF (parent_filing_date = 0000-00-00, A.filing_date, P.parent_filing_date) AS "Earliest Filling Date"
+		FROM application_data as A 
+			INNER JOIN continuity_parents as P ON A.application_number = P.application_number
+			INNER JOIN pta_summary as Z ON A.application_number = Z.application_number
+			INNER JOIN maintenance_fees as M ON A.application_number = M.application_number
+		-- Z.patent_term_adjustment != 0
+		WHERE P.continuation_type NOT LIKE '%PRO%'
+		AND A.filing_date != 0000-00-00;
